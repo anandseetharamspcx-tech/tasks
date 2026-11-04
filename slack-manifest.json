@@ -1,0 +1,39 @@
+{
+  "display_information": {
+    "name": "Move Request",
+    "description": "Stage items for delivery, then accept, stage, load, or cancel with a reason.",
+    "background_color": "#1d1c1d"
+  },
+  "features": {
+    "bot_user": {
+      "display_name": "Move Request",
+      "always_online": true
+    },
+    "slash_commands": [
+      {
+        "command": "/move",
+        "description": "Request items to be staged and delivered",
+        "should_escape": false
+      }
+    ]
+  },
+  "oauth_config": {
+    "scopes": {
+      "bot": [
+        "chat:write",
+        "chat:write.public",
+        "commands",
+        "files:read",
+        "users:read"
+      ]
+    }
+  },
+  "settings": {
+    "interactivity": {
+      "is_enabled": true
+    },
+    "org_deploy_enabled": false,
+    "socket_mode_enabled": true,
+    "token_rotation_enabled": false
+  }
+}
