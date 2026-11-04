@@ -3,24 +3,20 @@ import test from "node:test";
 import {
   advance,
   cancel,
-  messagesFor,
-  parseCancelSubmission,
-  parseMoveSubmission,
   createRequest,
+  deny,
+  messageFor,
+  parseDenySubmission,
+  parseMoveSubmission,
   TransitionError,
 } from "../src/workflow.js";
 
-function sample(overrides = {}) {
+function sample() {
   return createRequest({
     id: "MR-TEST01",
     what: "1500 PUI boxes",
-    where: "Dock 4",
-    pocId: "UPOC",
     requesterId: "UREQ",
-    originChannelId: "CORIGIN",
-    destChannelId: "CNIGHT",
-    pictures: ["https://files.slack.com/photo"],
-    ...overrides,
+    channelId: "CTEST",
   });
 }
 
@@ -30,89 +26,58 @@ function actionIds(message) {
   return actions.elements.map((element) => element.action_id);
 }
 
-test("request starts with Accept and Cancel in the night shift channel", () => {
-  const { dest, origin } = messagesFor(sample());
-  assert.deepEqual(actionIds(dest), ["move_accept", "move_cancel"]);
-  assert.equal(origin, null);
-  assert.match(dest.blocks[0].text.text, /requested to move "1500 PUI boxes"/);
-  assert.match(dest.blocks[0].text.text, /Dock 4/);
-  assert.match(dest.blocks[0].text.text, /<@UPOC>/);
+function body(message) {
+  return message.blocks[0].text.text;
+}
+
+test("a new request has Accept and Deny buttons", () => {
+  const message = messageFor(sample());
+  assert.deepEqual(actionIds(message), ["move_accept", "move_deny"]);
+  assert.match(body(message), /requested to move "1500 PUI boxes"/);
 });
 
-test("same channel keeps every button on one message", () => {
-  const requested = sample({ originChannelId: "CSAME", destChannelId: "CSAME" });
-  assert.deepEqual(actionIds(messagesFor(requested).dest), ["move_accept", "move_cancel"]);
-  assert.equal(messagesFor(requested).origin, null);
+test("accept then staged then loaded updates the same message", () => {
+  const accepted = advance(sample(), "accept", "U1");
+  assert.deepEqual(actionIds(messageFor(accepted)), ["move_stage", "move_cancel"]);
 
-  const staged = advance(advance(requested, "accept", "USTAGE"), "stage", "USTAGE");
-  const view = messagesFor(staged);
-  assert.equal(view.origin, null);
-  assert.deepEqual(actionIds(view.dest), ["move_load", "move_cancel"]);
+  const staged = advance(accepted, "stage", "U2");
+  assert.deepEqual(actionIds(messageFor(staged)), ["move_load", "move_cancel"]);
+  assert.match(body(messageFor(staged)), /is staged/);
+
+  const loaded = advance(staged, "load", "U3");
+  assert.deepEqual(actionIds(messageFor(loaded)), []);
+  assert.match(body(messageFor(loaded)), /has been loaded and sent/);
 });
 
-test("staging moves the Loaded button to the channel where /move was used", () => {
-  const accepted = advance(sample(), "accept", "UACCEPT");
-  const staged = advance(accepted, "stage", "USTAGE");
-  const view = messagesFor(staged);
-  assert.deepEqual(actionIds(view.dest), []);
-  assert.match(view.dest.blocks[0].text.text, /Staging for "1500 PUI boxes" completed/);
-  assert.deepEqual(actionIds(view.origin), ["move_load", "move_cancel"]);
+test("deny asks for a reason and ends the request", () => {
+  const denied = deny(sample(), "U2", "Wrong dock");
+  const message = messageFor(denied);
+  assert.deepEqual(actionIds(message), []);
+  assert.match(body(message), /will not be moved/);
+  assert.match(body(message), /Wrong dock/);
+  assert.throws(() => deny(sample(), "U2", "  "), TransitionError);
+  assert.throws(() => deny(advance(sample(), "accept", "U1"), "U2", "late"), TransitionError);
 });
 
-test("loaded and cancelled messages have no buttons", () => {
-  const loaded = advance(advance(advance(sample(), "accept", "U1"), "stage", "U2"), "load", "U3");
-  const view = messagesFor(loaded);
-  assert.deepEqual(actionIds(view.dest), []);
-  assert.deepEqual(actionIds(view.origin), []);
-  assert.match(view.origin.blocks[0].text.text, /has been loaded and sent/);
+test("cancel ends the request on the staged step and the loaded step", () => {
+  const accepted = advance(sample(), "accept", "U1");
+  const cancelledEarly = cancel(accepted, "U2");
+  assert.equal(cancelledEarly.status, "cancelled");
+  assert.match(body(messageFor(cancelledEarly)), /will not be staged/);
+  assert.deepEqual(actionIds(messageFor(cancelledEarly)), []);
 
-  const cancelled = cancel(advance(sample(), "accept", "U1"), "UCANCEL", "Truck broke down");
-  const cancelView = messagesFor(cancelled);
-  assert.deepEqual(actionIds(cancelView.dest), []);
-  assert.deepEqual(actionIds(cancelView.origin), []);
-  assert.match(cancelView.dest.blocks[0].text.text, /will not be staged/);
-  assert.match(cancelView.dest.blocks[0].text.text, /Truck broke down/);
-  assert.match(cancelView.origin.blocks[0].text.text, /Truck broke down/);
+  const staged = advance(accepted, "stage", "U2");
+  const cancelledLate = cancel(staged, "U3");
+  assert.match(body(messageFor(cancelledLate)), /will not be loaded/);
+  assert.deepEqual(actionIds(messageFor(cancelledLate)), []);
+
+  assert.throws(() => cancel(sample(), "U9"), TransitionError);
+  assert.throws(() => advance(sample(), "load", "U9"), TransitionError);
 });
 
-test("cancel copy follows the stage that was stopped", () => {
-  const duringStaging = cancel(advance(sample(), "accept", "U1"), "U2", "Wrong dock");
-  assert.match(messagesFor(duringStaging).dest.blocks[0].text.text, /cancelled during staging/);
-
-  const afterStaging = cancel(
-    advance(advance(sample(), "accept", "U1"), "stage", "U2"),
-    "U3",
-    "Site closed",
-  );
-  assert.match(messagesFor(afterStaging).origin.blocks[0].text.text, /will not be loaded and sent/);
-});
-
-test("buttons cannot skip or repeat a stage", () => {
-  const request = sample();
-  assert.throws(() => advance(request, "stage", "U1"), TransitionError);
-  assert.throws(() => advance(request, "load", "U1"), TransitionError);
-  const loaded = advance(advance(advance(request, "accept", "U1"), "stage", "U2"), "load", "U3");
-  assert.throws(() => advance(loaded, "accept", "U4"), TransitionError);
-  assert.throws(() => cancel(loaded, "U4", "too late"), TransitionError);
-  assert.throws(() => cancel(request, "U4", "   "), TransitionError);
-});
-
-test("form parsing keeps the move fields and requires a cancel reason", () => {
-  const parsed = parseMoveSubmission({
-    what: { what: { value: "  boxes " } },
-    where: { where: { value: "Dock 4" } },
-    poc: { poc: { selected_user: "UPOC" } },
-    pictures: { pictures: { files: [{ id: "F1" }, { id: "" }] } },
-  });
-  assert.deepEqual(parsed.errors, {});
-  assert.equal(parsed.what, "boxes");
-  assert.deepEqual(parsed.fileIds, ["F1"]);
-
-  const missing = parseMoveSubmission({});
-  assert.ok(missing.errors.what);
-  assert.ok(missing.errors.where);
-  assert.ok(missing.errors.poc);
-
-  assert.equal(parseCancelSubmission({ reason: { reason: { value: "  rain " } } }).reason, "rain");
-  assert.ok(parseCancelSubmission({}).errors.reason);
+test("the form only requires what needs to be moved", () => {
+  assert.equal(parseMoveSubmission({ what: { what: { value: "  boxes " } } }).what, "boxes");
+  assert.ok(parseMoveSubmission({}).errors.what);
+  assert.equal(parseDenySubmission({ reason: { reason: { value: " rain " } } }).reason, "rain");
+  assert.ok(parseDenySubmission({}).errors.reason);
 });

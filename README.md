@@ -1,19 +1,22 @@
 # Move Request bot
 
-Slack bot for the night-shift move request. Someone types `/move` in a channel, fills in the same form as the Workflow Builder version, and the request is one message that updates in place.
+Button bot for #testing-bot-stuff. People type `/move`, and the request is one message whose buttons change. Nobody advances it by replying in the thread.
 
-Buttons are Accept, then Staged, then Loaded. Cancel is on every one of those. Cancel asks why, posts the reason, locks the buttons, and stops the request.
+1. `/move` asks what needs to be moved and posts the request in that channel.
+2. **Accept** or **Deny**. Deny asks for a reason and ends the request.
+3. **Staged** or **Cancel**. Cancel ends the request.
+4. **Loaded** or **Cancel**. Cancel ends the request. Loaded finishes it.
 
-Accept and Staged go to `#nightshift-inventory-requests`. Loaded goes back to the channel where `/move` was used. If you leave the night-shift channel blank, the whole request stays in the channel where `/move` was typed, which is the easy way to try it.
+## One-time setup
 
-## Set up
+Slack has to install the app before it can put buttons in the channel. This repo cannot invite itself.
 
-1. Go to [api.slack.com/apps](https://api.slack.com/apps) and choose **Create New App** → **From a manifest**. Paste `slack-manifest.json`.
+1. Open [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From a manifest** → paste `slack-manifest.json`.
 2. Turn on **Socket Mode** and create an app-level token with the `connections:write` scope.
 3. Install the app to the workspace and copy the bot token.
-4. Invite **@Move Request** to `#nightshift-inventory-requests` and to any channel where people will run `/move`.
-5. Copy `.env.example` to `.env` and fill in the tokens. Put the night-shift channel ID in `NIGHTSHIFT_CHANNEL_ID` (channel name → About → copy the ID).
-6. Start it:
+4. Invite **@Move Request** to #testing-bot-stuff.
+5. Copy `.env.example` to `.env` and fill in both tokens.
+6. Start it and leave it running:
 
 ```bash
 npm install
@@ -21,6 +24,4 @@ npm test
 npm start
 ```
 
-The process has to stay running. Socket Mode connects out to Slack, so this can run on any machine that stays on.
-
-Then type `/move` in the channel.
+Then type `/move` in #testing-bot-stuff.

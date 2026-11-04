@@ -1,7 +1,7 @@
 {
   "display_information": {
     "name": "Move Request",
-    "description": "Stage items for delivery, then accept, stage, load, or cancel with a reason.",
+    "description": "Button bot for move requests: Accept or Deny, then Staged or Cancel, then Loaded or Cancel.",
     "background_color": "#1d1c1d"
   },
   "features": {
@@ -12,7 +12,7 @@
     "slash_commands": [
       {
         "command": "/move",
-        "description": "Request items to be staged and delivered",
+        "description": "Create a move request",
         "should_escape": false
       }
     ]
@@ -21,10 +21,7 @@
     "scopes": {
       "bot": [
         "chat:write",
-        "chat:write.public",
-        "commands",
-        "files:read",
-        "users:read"
+        "commands"
       ]
     }
   },

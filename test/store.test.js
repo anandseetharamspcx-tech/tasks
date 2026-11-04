@@ -14,11 +14,8 @@ test("store remembers a request across a new store instance", async () => {
     const request = createRequest({
       id: "MR-STORE1",
       what: "cones",
-      where: "Gate",
-      pocId: "UPOC",
       requesterId: "UREQ",
-      originChannelId: "C1",
-      destChannelId: "C2",
+      channelId: "C1",
     });
     await store.insert(request);
     const updated = await store.mutate("MR-STORE1", (current) => advance(current, "accept", "UACCEPT"));
@@ -41,11 +38,8 @@ test("a failed update does not save", async () => {
       createRequest({
         id: "MR-STORE2",
         what: "cones",
-        where: "Gate",
-        pocId: "UPOC",
         requesterId: "UREQ",
-        originChannelId: "C1",
-        destChannelId: "C2",
+        channelId: "C1",
       }),
     );
     await assert.rejects(() => store.mutate("MR-STORE2", () => {
