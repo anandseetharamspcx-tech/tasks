@@ -1,0 +1,12 @@
+{
+  "name": "move-request-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/app.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@slack/bolt": "^4.6.0"
+  }
+}
